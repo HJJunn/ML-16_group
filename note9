@@ -1,0 +1,107 @@
+인공 신경망
+생물학적인 뉴런을 수학적 모델로 구현화
+ 
+퍼셉트론
+여러 개의 입력을 받아 하나의 신호를 출력하는 장치
+<활성화 함수 수식화>
+y= {1 = if(w1x1+w2x2+b>=0)}
+{0 = otherwise}
+입력 x1, x2가 존재하고 각 입력에 대한 가중치 w1, w2가 존재할 때, w1*x1+w2*x2에 편향 b(bias)을 더한 값이 특정 임계 값을 넘어설 경우 뉴런이 활성화되어 1을 출력하는 연산을 진행한다.
+ 
+<퍼셉트론 예제>
+iris = load_iris()
+X = iris.data[:, (2, 3)]  # 꽃잎 길이, 꽃잎 너비
+y = (iris.target == 0).astype(np.int)
+아이리스 데이터셋 불러온 후 X를 통해 특성 선택, Y는 타겟 품종 선택
+per_clf = Perceptron(max_iter=1000, tol=1e-3, random_state=42)
+per_clf.fit(X, y)
+y_pred = per_clf.predict([[2, 0.5]])
+max_iter – 반복횟수 지정 / tol – 허용 오차 수준 / random_state 통해 난수화 진행
+y_pred 통해 지정된 값에 대한 품종 예측 진행
+ 
+<활성화 함수 예제>
+def sigmoid(z):
+   return 1 / (1 + np.exp(-z))
+비선형 시그모이드 함수로, z를 입력받아 0과 1사이의 값 반환하는 함수
+def relu(z):
+   return np.maximum(0, z)
+비선형 렐루 함수, z 양수 입력값에 대한 반환과 음수에 대해 0을 반환하는 함수
+def derivative(f, z, eps=0.000001):
+   return (f(z + eps) - f(z - eps))/(2 * eps)
+도함수 함수로 함수 f의 z상태를 지정해 도출하며 엡실론을 이용해 미분값을 특정하는 함수
+ 
+다층 퍼셉트론
+퍼셉트론을 여러 층 쌓은 다층 신경망 구조로 같은 층 내에서는 뉴런 간의 연결이 없으며 인접한 두 층의 모든 뉴런이 완전 연결되는 망 구조를 띄는 장치
+ 
+역전파 알고리즘
+주어진 입력을 순방향으로 계산 후, 실제 출력과 예상 값 사이의 오차 값을 역으로 전파하면서 가중치를 변경하는 방법
+ 
+역전파 알고리즘 원리
+미분의 Chain Rule을 이용해 변화량을 구해 각 편향과 가중치가 오차에 미친 영향력의 정도를 파악해 변수를 업데이트하는 방식으로 작동한다.
+Chain Rule은 함수 f, g가 미분 가능하고 f*g가 미분 가능하면 합성함수 미분을 통해 변화량을 구할 수 있고 이 때, 변화량을 통해 각 함수 f, g의 변화 기여량을 구할 수 있으므로 이를 통해 편향이나 가중치 값을 조정할 수 있다.
+ 
+<케라스 통한 다층 퍼셉트론 분류기 예제>
+fashion_mnist = keras.datasets.fashion_mnist    #훈련세트 60000개 흑백 이미지(28x28)
+(X_train_full, y_train_full), (X_test, y_test) = fashion_mnist.load_data()
+MNIST 데이터셋 로드
+X_train_full.shape
+X_train_full.dtype
+X_valid, X_train = X_train_full[:5000] / 255., X_train_full[5000:] / 255.
+y_valid, y_train = y_train_full[:5000], y_train_full[5000:]
+훈련세트, 검증세트 세팅 및 데이터 타입 정의
+X_test = X_test / 255.
+각 픽셀 강도는 byte 기반으로 0~255로 표현되는데, 이를 255로 나눔으로 값을 0과 1사이의 실수로 표현
+model = keras.models.Sequential()
+model.add(keras.layers.Flatten(input_shape=[28, 28]))
+평평한 배열 레이어 추가
+model.add(keras.layers.Dense(300, activation="relu"))
+model.add(keras.layers.Dense(100, activation="relu"))
+model.add(keras.layers.Dense(10, activation="softmax"))
+각기 첫 매개변수 개수만큼의 뉴런을 가진 다층 퍼셉트론 레이어로 렐루, 소프트맥스 활성화 함수를 가지는 모델 생성
+model.summary()
+Model: "sequential"
+_________________________________________________________________
+Layer (type)                Output Shape              Param #  
+=================================================================
+flatten (Flatten)           (None, 784)               0        
+_________________________________________________________________
+dense (Dense)               (None, 300)               235500    
+_________________________________________________________________
+dense_1 (Dense)             (None, 100)               30100    
+_________________________________________________________________
+dense_2 (Dense)             (None, 10)                1010      
+=================================================================
+Total params: 266,610
+Trainable params: 266,610
+Non-trainable params: 0
+각 레이어에 대한 타입, 형태, 파라미터 개수 제공
+ 
+이후 모델 컴파일 진행
+model.compile(loss=keras.losses.sparse_categorical_crossentropy,
+             optimizer=keras.optimizers.SGD(),
+             metrics=[keras.metrics.sparse_categorical_accuracy])
+loss= 손실 함수 지정 (샘플에 대한 손실 계산)
+optimizer= SGD(확률적 경사하강법)으로 가중치 조절, 모델 최적화 진행
+Metrics= 모델 성능평가 지표 지정
+ 
+model.evaluate(X_test, y_test)
+모델 평가 진행
+313/313 [==============================] - 1s 2ms/step - loss: 0.3386 - accuracy: 0.8823
+[0.3386382460594177, 0.8823000192642212]
+ 
+<Sequential API 이용한 회귀 다중퍼셉트론 모델 예제>
+housing = fetch_california_housing()
+X_train_full, X_test, y_train_full, y_tes =train_test_split(housing.data, housing.target, random_state=42)
+X_train, X_valid, y_train, y_valid = train_test_split(X_train_full, y_train_full, random_state=42)
+데이터셋 로드 및 훈련세트, 검증세트, 테스트세트 분할 진행
+scaler = StandardScaler() X_train = scaler.fit_transform(X_train)
+X_valid = scaler.transform(X_valid) X_test = scaler.transform(X_test)
+스케일러 통한 데이터 표준화
+model = keras.models.Sequential([
+   keras.layers.Dense(30, activation="relu", input_shape=X_train.shape[1:]),
+   keras.layers.Dense(1)])
+model.compile(loss="mean_squared_error", optimizer=keras.optimizers.SGD(learning_rate=1e-3))
+모델 세팅(렐루 기반의 회귀 모델)과 확률적 경사하강법 기반을 통해 가중치 조절 및 손실함수로 평균 제곱 오차를 사용함.
+history = model.fit(X_train, y_train, epochs=20, validation_data=(X_valid, y_valid))
+mse_test = model.evaluate(X_test, y_test)
+모델 훈련과정을 기록하고 테스트 세트를 평가하고 손실함수 계산 진행
