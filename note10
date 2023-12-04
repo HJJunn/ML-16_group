@@ -1,0 +1,106 @@
+합성곱 신경망
+
+1. 합성곱 층
+CNN에서 첫번째 합성곱 층의 뉴런은 수용장 안에 있는 픽셀에만 연결된다.
+두 번째 합성곱 층에 있는 각 뉴런은 첫번째 층의 작은 사각 영역 안에 위치한 뉴런에 연결된다.
+첫번째 은닉층 - 저수준 특성에 집중 , 다음 은닉층 - 큰 고수준 특성으로 조합
+스트라이드 2를  사용하여 큰 입력층을 작은 층에 연결해서 차원 축소 하는 것이 가능하다.
+그렇게 되면 모델의 계산 복잡도를 크게 낮추어 줄 수 있다.
+
+2. 필터
+이미지를 입력하고 첫 번째 필터에서는 가운데 흰 수직선이 있는 사각형으로 한 층이 모든 뉴런에 같은 수직선 필터를 적용하여 특성맵 1을 만든다.
+두 번째 필터에서는 가운데 흰 수평선이 있는 사각형에서 모든 뉴런에 수평선 필터를 적용하여 특성맵 2를 만든다.
+이 맵은 필터를 가장 활성화 시키는 이미지의 영역을 강조한다.
+2.2 여러가지 특성 맵 쌓기
+실제 합성곱 층은 여러가지 필터를 가지고 필터마나 하나의 특성 맵을 출력하므로 3D로 표현하는 것이 더 정확하다.
+각 특성 맵에서 픽셀에 해당하는 모든 뉴런이 같은 파라미터를 공유하지만, 다른 특성 맵에 있는 뉴론은 다른 파라미터를 사용한다.
+즉, 하나의 합성곱 층이 여러 필터를 동시에 적용하여 여러 특성을 감지할 수 있다.
+2.3 텐서플로 구현
+# 샘플 이미지를 로드합니다.
+china = load_sample_image("china.jpg") / 255 # 255로 나누어 0~1 사이의 실수로 바꿈
+flower = load_sample_image("flower.jpg") / 255 # 255로 나누어 0~1 사이의 실수로 바꿈
+images = np.array([china, flower])
+batch_size, height, width, channels = images.shape
+
+# 2개의 필터를 만듭니다.
+filters = np.zeros(shape=(7, 7, channels, 2), dtype=np.float32) # 7 x 7 필터
+filters[:, 3, :, 0] = 1  # 수직선
+filters[3, :, :, 1] = 1  # 수평선
+
+outputs = tf.nn.conv2d(images, filters, strides=1, padding="SAME") # 제로 패딩과 스트라이드 1을 사용
+
+plt.imshow(outputs[0, :, :, 1], cmap="gray") # 첫 번째 이미지의 두 번째 특성맵을 그립니다.
+plt.axis("off") # 책에는 없습니다.
+plt.show()
+
+# tf.nn.conv2d()의 파라미터 
+image : 입력의 미니배치
+filters : 일련의 필터
+strides : 1~4 원소를 갖는 1D 배열로 지정 가능
+padding : 'VALID', 'SAME' 중 하나를 지정 VALID - 제로 패딩 x, SAME - 제로 패딩 o
+
+keras.layers.Conv2D() 사용하여 2D 합성곱 층을 만들었다.
+np.random.seed(42)
+tf.random.set_seed(42)
+
+conv = keras.layers.Conv2D(filters=2, kernel_size=7, strides=1,
+                           padding="SAME", activation="relu", input_shape=outputs.shape)
+
+3. 풀링 층
+이 층의 목적은 계산량, 메모리 사용량, 파라미터를 줄이기 위해 입력 이미지의 부표본을 만드는 것이다.
+풀링 뉴런은 가중치가 없어 최대나 평균 같은 합산 함수를 사용해 입력값을 더한다.
+최대 풀링 층 - 각 수용장에 가장 큰 입력값만 다음 층에 전달, 그 다음 스트라이드 값을 나눠준다.
+최대 풀링은 작은 변화에도 일정 수준의 불변성을 만들어준다.
+예를 들어 A 픽셀은 50% 만 변하고 B 픽셀은 100% 변했다면 A픽셀은 원래 픽셀과 출력이 같다.
+풀링 층의 불변성은 예측 같은 작업을 할 때 유용할 수 있다.'
+하지만 매우 파괴적인 층이라는 단점이 있다.
+시맨틱 분할 경우에는 입력이미지가 한 픽셀 이동하면 출력도 한 픽셀 이동하는 등변성이 목표가 되야 한다.
+3.2 텐서플로 구현
+풀링 층에는 최대 풀링, 평균 풀링, 깊이 방향 풀링, 전역 평균 풀링 등이 있다.
+최대 풀링
+max_pool = keras.layers.MaxPool2D(pool_size=2) 기본적으로 "valid" 패딩을 사용한다. 이 말은 어떤 패딩도 하지 않는다는 것이다. 평균 풀링보다 성능이 좋다.
+평균 풀링
+avg_pool = keras.layers.AvgPool2D(pool_size=2) Maxpool2D 대신 AvgPool2D를 사용한다. 정보 손실이 작다.
+깊이 방향 풀링
+class DepthMaxPool(keras.layers.Layer):
+    def __init__(self, pool_size, strides=None, padding="VALID", **kwargs):
+        super().__init__(**kwargs)
+        if strides is None:
+            strides = pool_size
+        self.pool_size = pool_size
+        self.strides = strides
+        self.padding = padding
+    def call(self, inputs):
+        return tf.nn.max_pool(inputs,
+                              ksize=(1, 1, 1, self.pool_size), # 배치 높이 차원 깊이 순
+                              strides=(1, 1, 1, self.pool_size),
+                              padding=self.padding) 
+깊이 방향 최대 풀링 층은 회전에 상관없이 동일 출력을 만들어서 두께, 밝기, 왜곡, 색상 등에 불변성을 학습할 수 있다.
+전역 평균 풀링
+avg_pool = keras.layers.AvgPool2D(pool_size=2)
+각 특성 맵의 평균을 계산 -> 매우 파괴적이만, 출력층에는 유용히디.
+
+3. CNN
+CNN에서 가장 핵심 부분은 convolution layer이다. 보통 convolutin layer에서 분류하는데 필요한 특징정보들을 뽑아낸다.
+convolution filter는 전체이미지를 window sliding 방식으로 차례대로 움직이면서 특징값을 추출한다.
+filter 전체 이미지를 순회하고 나면 해당 filter와 유사한 모양을 가진 부분에 대한 features들을 얻을 수 있다.
+3.1 first convolution layer
+CNN에서 제일 처음하는 작업은 edge filter를 사용하는 것이다. 
+conv filter 에서 이미지를 천천히 순회하다 보면 conv filter의 edge 부분과 일치하는 영역에서 높은 값을 도출한다.
+사용한 filter의 개수만큼 conv filter에서는 6개의 결과값이 나오는데 이를 feature map이라고 부른다.
+3.2 pooling layer
+각각의 feature map 에서 특정 영역을 형성하여 해당 내 가장 큰값을 도출하는 것이 위에서 말한 최대 풀링이다.
+최대 풀링을 사용하면 큰 값을 뽑아내기 때문에 특징들이 좀 더 뚜렷해진다.
+풀링 연산을 불변성에 의해서 형태는 유지하면서 기존의 이미지를 작게 만들 수 있는데 이를 통해서
+위에서 구한 edge 정보를 좀 더 abstract feature를 추출할 수 있게 되고 CNN을 사용할 수 있다.
+3.3 FC layer
+앞에서 말한 방식으로 feature를 얻다보면 마지막에는 물체와 유사한 형태들의 feature를 선별할 수 있다.
+FC layer를 통해 물체와 유사한 feature map을 통한 분류를 하게 되는데 이 과정이 기존의 DNN이다.
+
+DNN은 다음 장 내용으로 다음 주에 좀 더 공부해 봐야겠다.
+최근 생성 ai가 유행해서 그런지 최근에 RNN, CNN등의 인공 신경망에 대해 많이 접하고 공부하는 중인데
+내용이 많이 복잡해서 모델을 생성하는데 어려움이 있었다.
+기계학습 수업에서 이렇게 또 교과서적인 내용으로 원리에 대해 자세히 배울 수 있어서 좋았다.
+
+
+
