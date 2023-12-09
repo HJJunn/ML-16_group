@@ -1,0 +1,64 @@
+import tensorflow as tf
+from tensorflow import keras
+from keras.datasets import fashion_mnist
+from keras.utils import to_categorical
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+from keras.layers import Dropout
+
+# 데이터 로드 및 전처리
+(X_train_full, y_train_full), (X_test, y_test)
+(train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data()
+
+# 이미지 크기 및 채널 조정
+img_rows, img_cols, channels = 28, 28, 1
+train_images = train_images.reshape((60000, img_rows, img_cols, channels)).astype('float32') / 255
+test_images = test_images.reshape((10000, img_rows, img_cols, channels)).astype('float32') / 255
+
+# 레이블을 one-hot 인코딩
+train_labels = to_categorical(train_labels)
+test_labels = to_categorical(test_labels)
+# Sequential 모델 생성
+
+model = Sequential()
+
+model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(img_rows, img_cols, channels)))
+model.add(MaxPooling2D((2, 2)))
+model.add(Dropout(0.25))  # 드랍아웃 조정
+model.add(Conv2D(64, (3, 3), activation='relu'))
+model.add(MaxPooling2D((2, 2)))
+model.add(Dropout(0.25)) 
+
+# Flatten Layer
+model.add(Flatten())
+model.add(Dense(64, activation='relu'))
+model.add(Dropout(0.5))  
+model.add(Dense(10, activation='softmax'))
+# 모델 컴파일
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+keras.backend.clear_session()
+np.random.seed(42)
+tf.random.set_seed(42)
+
+model.layers
+model.summary()
+history=model.fit(train_images, train_labels, epochs=100, batch_size=64, validation_split=0.2)
+history.params
+test_loss, test_acc = model.evaluate(test_images, test_labels)
+print(f'Test accuracy: {test_acc}')
+
+import pandas as pd
+#그래프 그리기
+pd.DataFrame(history.history).plot(figsize=(8, 5))
+plt.grid(True)
+plt.gca().set_ylim(0, 1)
+save_fig("keras_learning_curves_plot")
+plt.show()
+#코드 해석
+처음에 CNN모델 작성하면서 예제 코드보다 레이어 수를 줄여 모델의 성능에 지장이 없는 한에서 전체 파라미터 개수를 감소시켰다.
+컨볼루션 레이어, 풀링 레이어, 평탄화 레이어, 완전연결층, 아웃풋 레이어 순으로 구성했는데 이대로 학습 진행하는 과정에서 모델이 오버피팅 되어 문제가 발생했다.
+일반화 성능이 크게 떨어짐을 시각화된 그래프를 통해 확인하고 과적합을 줄이는 과정에서 드랍아웃 레이어를 이용해 일정 수치만큼의 뉴런을 비활성화 시키는 방법으로 
+드랍아웃 강도를 높여가며 적용시킴으로 과적합에서 벗어나 일반화된 모델을 작성할 수 있었다.
+이후 에포크 수를 바꾸며 훈련 결과를 확인했고 5, 10, 30, 100 순으로 진행해 이에 따른 모델의 변화를 관측했으며 90% 이상의 적중률을 보이는 적합한 에포크 수를 도출해 냈다.
+
